@@ -1,0 +1,216 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard — SolarTrack{% endblock %}
+{% block page_title %}Dashboard{% endblock %}
+
+{% block topbar_actions %}
+  <a href="{{ url_for('expenses.add') }}" class="btn btn-solar btn-sm">
+    <i class="bi bi-plus-lg me-1"></i>Add Expense
+  </a>
+{% endblock %}
+
+{% block content %}
+
+<!-- Stat cards -->
+<div class="row g-3 mb-4">
+  <div class="col-12 col-sm-6 col-xl-3">
+    <div class="stat-card">
+      <div class="stat-label">Total Investment</div>
+      <div class="stat-value">{{ currency }} {{ "{:,.2f}".format(total_investment) }}</div>
+      <div class="stat-sub">{{ expense_count }} expense{{ 's' if expense_count != 1 }}</div>
+      <i class="bi bi-currency-dollar stat-icon"></i>
+    </div>
+  </div>
+
+  <div class="col-12 col-sm-6 col-xl-3">
+    <div class="stat-card green">
+      <div class="stat-label">Estimated Savings</div>
+      {% if estimated_savings is not none %}
+        <div class="stat-value">{{ currency }} {{ "{:,.2f}".format(estimated_savings) }}</div>
+        <div class="stat-sub">Based on {{ years_installed }}y of production</div>
+      {% else %}
+        <div class="stat-value text-muted">—</div>
+        <div class="stat-sub">Configure system settings</div>
+      {% endif %}
+      <i class="bi bi-piggy-bank stat-icon"></i>
+    </div>
+  </div>
+
+  <div class="col-12 col-sm-6 col-xl-3">
+    <div class="stat-card blue">
+      <div class="stat-label">Payback Period</div>
+      {% if payback_years is not none %}
+        <div class="stat-value">{{ payback_years }} <small style="font-size:1rem">yrs</small></div>
+        <div class="stat-sub">Estimated break-even</div>
+      {% else %}
+        <div class="stat-value text-muted">—</div>
+        <div class="stat-sub">Configure system settings</div>
+      {% endif %}
+      <i class="bi bi-calendar-check stat-icon"></i>
+    </div>
+  </div>
+
+  <div class="col-12 col-sm-6 col-xl-3">
+    <div class="stat-card">
+      <div class="stat-label">System Size</div>
+      {% if settings and settings.system_size_kw %}
+        <div class="stat-value">{{ settings.system_size_kw }} <small style="font-size:1rem">kW</small></div>
+        <div class="stat-sub">{{ settings.panel_count }} panels</div>
+      {% else %}
+        <div class="stat-value text-muted">—</div>
+        <div class="stat-sub"><a href="{{ url_for('settings.index') }}" class="text-accent">Set up system</a></div>
+      {% endif %}
+      <i class="bi bi-sun stat-icon"></i>
+    </div>
+  </div>
+</div>
+
+<!-- Charts row -->
+<div class="row g-3 mb-4">
+  <div class="col-12 col-lg-5">
+    <div class="chart-card h-100">
+      <div class="chart-card-title">Expense Breakdown</div>
+      {% set category_data_val = category_data|tojson if category_data is mapping else category_data %}
+      <canvas id="categoryChart" height="240"></canvas>
+      {% if not category_data or category_data == '{}' %}
+        <div class="empty-state">
+          <i class="bi bi-pie-chart"></i>
+          <p>No expense data yet.<br><a href="{{ url_for('expenses.add') }}" class="text-accent">Add your first expense</a></p>
+        </div>
+      {% endif %}
+    </div>
+  </div>
+
+  <div class="col-12 col-lg-7">
+    <div class="chart-card h-100">
+      <div class="chart-card-title">Monthly Spending (Last 12 Months)</div>
+      <canvas id="monthlyChart" height="240"></canvas>
+      {% if not monthly_values or monthly_values == '[]' %}
+        <div class="empty-state">
+          <i class="bi bi-bar-chart"></i>
+          <p>No expense data yet.</p>
+        </div>
+      {% endif %}
+    </div>
+  </div>
+</div>
+
+<!-- Recent expenses -->
+<div class="chart-card">
+  <div class="d-flex align-items-center justify-content-between mb-3">
+    <div class="chart-card-title mb-0">Recent Expenses</div>
+    <a href="{{ url_for('expenses.index') }}" class="btn btn-outline-secondary btn-sm">View all</a>
+  </div>
+
+  {% if recent_expenses %}
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th>Date</th>
+          <th>Category</th>
+          <th>Description</th>
+          <th class="text-end">Amount</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for e in recent_expenses %}
+          <tr>
+            <td class="text-muted">{{ e.date.strftime('%b %d, %Y') }}</td>
+            <td><span class="category-badge">{{ e.category }}</span></td>
+            <td>{{ e.description }}</td>
+            <td class="text-end fw-semibold">{{ currency }} {{ "{:,.2f}".format(e.amount) }}</td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  {% else %}
+    <div class="empty-state">
+      <i class="bi bi-receipt"></i>
+      <p>No expenses yet. <a href="{{ url_for('expenses.add') }}" class="text-accent">Add your first one.</a></p>
+    </div>
+  {% endif %}
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+const categoryData = {{ category_data|safe }};
+const monthlyLabels = {{ monthly_labels|safe }};
+const monthlyValues = {{ monthly_values|safe }};
+
+const PALETTE = [
+  '#f59e0b','#22c55e','#3b82f6','#a855f7','#ef4444',
+  '#06b6d4','#f97316','#84cc16','#ec4899','#14b8a6','#8b5cf6','#64748b'
+];
+
+// Donut chart
+if (Object.keys(categoryData).length > 0) {
+  const ctx1 = document.getElementById('categoryChart');
+  if (ctx1) {
+    new Chart(ctx1, {
+      type: 'doughnut',
+      data: {
+        labels: Object.keys(categoryData),
+        datasets: [{
+          data: Object.values(categoryData),
+          backgroundColor: PALETTE,
+          borderWidth: 0,
+          hoverOffset: 6,
+        }]
+      },
+      options: {
+        cutout: '68%',
+        plugins: {
+          legend: { position: 'right', labels: { boxWidth: 12, padding: 14 } },
+          tooltip: {
+            callbacks: {
+              label: (ctx) => ` ${ctx.label}: $${ctx.parsed.toLocaleString('en-US', {minimumFractionDigits:2})}`
+            }
+          }
+        }
+      }
+    });
+  }
+}
+
+// Bar chart
+if (monthlyValues.length > 0) {
+  const ctx2 = document.getElementById('monthlyChart');
+  if (ctx2) {
+    new Chart(ctx2, {
+      type: 'bar',
+      data: {
+        labels: monthlyLabels,
+        datasets: [{
+          label: 'Expenses',
+          data: monthlyValues,
+          backgroundColor: 'rgba(245,158,11,0.7)',
+          borderRadius: 5,
+          borderSkipped: false,
+        }]
+      },
+      options: {
+        scales: {
+          x: { grid: { display: false } },
+          y: {
+            grid: { color: '#374151' },
+            ticks: {
+              callback: (v) => '$' + v.toLocaleString()
+            }
+          }
+        },
+        plugins: {
+          legend: { display: false },
+          tooltip: {
+            callbacks: {
+              label: (ctx) => ` $${ctx.parsed.y.toLocaleString('en-US', {minimumFractionDigits:2})}`
+            }
+          }
+        }
+      }
+    });
+  }
+}
+</script>
+{% endblock %}

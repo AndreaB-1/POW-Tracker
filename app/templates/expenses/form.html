@@ -1,0 +1,62 @@
+{% extends "base.html" %}
+
+{% block title %}{{ 'Edit' if expense else 'Add' }} Expense — SolarTrack{% endblock %}
+{% block page_title %}{{ 'Edit' if expense else 'Add' }} Expense{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+  <div class="col-12 col-md-8 col-lg-6">
+    <div class="form-card">
+      <form method="post">
+        <div class="mb-3">
+          <label class="form-label">Date</label>
+          <input type="date" name="date" class="form-control"
+                 value="{{ expense.date.isoformat() if expense else today }}" required>
+        </div>
+
+        <div class="mb-3">
+          <label class="form-label">Category</label>
+          <select name="category" class="form-select" required>
+            <option value="" disabled {{ 'selected' if not expense }}>Select a category…</option>
+            {% for cat in categories %}
+              <option value="{{ cat }}" {{ 'selected' if expense and expense.category == cat }}>
+                {{ cat }}
+              </option>
+            {% endfor %}
+          </select>
+        </div>
+
+        <div class="mb-3">
+          <label class="form-label">Description</label>
+          <input type="text" name="description" class="form-control"
+                 placeholder="e.g. 10× 400W monocrystalline panels"
+                 value="{{ expense.description if expense else '' }}" required>
+        </div>
+
+        <div class="mb-3">
+          <label class="form-label">Amount ({{ currency }})</label>
+          <div class="input-group">
+            <span class="input-group-text bg-surface-2 border-secondary text-muted">{{ currency }}</span>
+            <input type="number" name="amount" class="form-control" step="0.01" min="0"
+                   placeholder="0.00"
+                   value="{{ expense.amount if expense else '' }}" required>
+          </div>
+        </div>
+
+        <div class="mb-4">
+          <label class="form-label">Notes <span class="text-muted fw-normal">(optional)</span></label>
+          <textarea name="notes" class="form-control" rows="3"
+                    placeholder="Any additional details…">{{ expense.notes if expense else '' }}</textarea>
+        </div>
+
+        <div class="d-flex gap-2">
+          <button type="submit" class="btn btn-solar">
+            <i class="bi bi-check-lg me-1"></i>{{ 'Save Changes' if expense else 'Add Expense' }}
+          </button>
+          <a href="{{ url_for('expenses.index') }}" class="btn btn-outline-secondary">Cancel</a>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+{% endblock %}

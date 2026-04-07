@@ -1,0 +1,121 @@
+{% extends "base.html" %}
+
+{% block title %}Expenses — SolarTrack{% endblock %}
+{% block page_title %}Expenses{% endblock %}
+
+{% block topbar_actions %}
+  <a href="{{ url_for('expenses.add') }}" class="btn btn-solar btn-sm">
+    <i class="bi bi-plus-lg me-1"></i>Add Expense
+  </a>
+{% endblock %}
+
+{% block content %}
+
+<!-- Filter bar -->
+<div class="form-card mb-4">
+  <form method="get" class="row g-2 align-items-end">
+    <div class="col-12 col-sm-4 col-md-3">
+      <label class="form-label">Category</label>
+      <select name="category" class="form-select form-select-sm">
+        <option value="">All categories</option>
+        {% for cat in categories %}
+          <option value="{{ cat }}" {{ 'selected' if selected_category == cat }}>{{ cat }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="col-6 col-sm-3 col-md-2">
+      <label class="form-label">From</label>
+      <input type="date" name="date_from" class="form-control form-control-sm" value="{{ date_from }}">
+    </div>
+    <div class="col-6 col-sm-3 col-md-2">
+      <label class="form-label">To</label>
+      <input type="date" name="date_to" class="form-control form-control-sm" value="{{ date_to }}">
+    </div>
+    <div class="col-12 col-sm-auto">
+      <button type="submit" class="btn btn-outline-secondary btn-sm w-100">
+        <i class="bi bi-funnel me-1"></i>Filter
+      </button>
+    </div>
+    {% if selected_category or date_from or date_to %}
+      <div class="col-12 col-sm-auto">
+        <a href="{{ url_for('expenses.index') }}" class="btn btn-link btn-sm text-muted p-0">Clear</a>
+      </div>
+    {% endif %}
+  </form>
+</div>
+
+<!-- Table -->
+<div class="chart-card">
+  <div class="d-flex align-items-center justify-content-between mb-3">
+    <div class="chart-card-title mb-0">
+      {{ expenses|length }} expense{{ 's' if expenses|length != 1 }}
+    </div>
+    <div class="fw-bold text-accent fs-5">
+      {{ currency }} {{ "{:,.2f}".format(total) }}
+    </div>
+  </div>
+
+  {% if expenses %}
+    <div class="table-responsive">
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th>Date</th>
+            <th>Category</th>
+            <th>Description</th>
+            <th>Notes</th>
+            <th class="text-end">Amount</th>
+            <th class="text-end">Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for e in expenses %}
+            <tr>
+              <td class="text-muted text-nowrap">{{ e.date.strftime('%b %d, %Y') }}</td>
+              <td><span class="category-badge">{{ e.category }}</span></td>
+              <td>{{ e.description }}</td>
+              <td class="text-muted" style="max-width:200px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">
+                {{ e.notes or '—' }}
+              </td>
+              <td class="text-end fw-semibold text-nowrap">
+                {{ currency }} {{ "{:,.2f}".format(e.amount) }}
+              </td>
+              <td class="text-end text-nowrap">
+                <a href="{{ url_for('expenses.edit', expense_id=e.id) }}"
+                   class="btn btn-outline-secondary btn-sm py-0 px-2 me-1">
+                  <i class="bi bi-pencil"></i>
+                </a>
+                <form id="del-{{ e.id }}" method="post"
+                      action="{{ url_for('expenses.delete', expense_id=e.id) }}"
+                      style="display:inline">
+                  <button type="button" class="btn btn-outline-danger btn-sm py-0 px-2"
+                          onclick="confirmDelete('del-{{ e.id }}', '{{ e.description|replace("'","\\'")|e }}')">
+                    <i class="bi bi-trash"></i>
+                  </button>
+                </form>
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+        <tfoot>
+          <tr>
+            <td colspan="4" class="text-muted fw-semibold pt-3">Total</td>
+            <td class="text-end fw-bold text-accent pt-3">
+              {{ currency }} {{ "{:,.2f}".format(total) }}
+            </td>
+            <td></td>
+          </tr>
+        </tfoot>
+      </table>
+    </div>
+  {% else %}
+    <div class="empty-state">
+      <i class="bi bi-receipt"></i>
+      <p>No expenses found.<br>
+        <a href="{{ url_for('expenses.add') }}" class="text-accent">Add your first expense</a>
+      </p>
+    </div>
+  {% endif %}
+</div>
+
+{% endblock %}

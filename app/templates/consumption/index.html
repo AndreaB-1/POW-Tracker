@@ -1,0 +1,296 @@
+{% extends "base.html" %}
+
+{% block title %}Consumption — SolarTrack{% endblock %}
+{% block page_title %}Energy Consumption{% endblock %}
+
+{% block content %}
+
+<!-- Growatt integration banner -->
+<div class="integration-banner mb-4">
+  <div class="d-flex flex-wrap align-items-start gap-3">
+    <div class="flex-grow-1">
+      <div class="d-flex align-items-center gap-2 mb-2">
+        <i class="bi bi-plug-fill text-accent fs-5"></i>
+        <span class="fw-bold text-white">Growatt Inverter Integration</span>
+        <span class="integration-status status-placeholder">
+          <i class="bi bi-hourglass-split"></i> Placeholder
+        </span>
+      </div>
+      <p class="text-muted mb-0" style="font-size:0.85rem;">
+        Automatic sync with your Growatt inverter is ready to be configured.
+        Fill in your credentials below to enable live production data.
+        The sync endpoint uses the
+        <a href="https://github.com/indykoning/PyPi_GrowattServer" target="_blank" rel="noopener" class="text-accent">
+          growattServer</a> library (install separately — not yet bundled).
+      </p>
+    </div>
+    <button class="btn btn-outline-secondary btn-sm" data-bs-toggle="collapse" data-bs-target="#growattConfig">
+      <i class="bi bi-gear me-1"></i>Configure
+    </button>
+  </div>
+
+  <div class="collapse mt-3" id="growattConfig">
+    <div class="section-divider"></div>
+    <form method="post" action="{{ url_for('consumption.growatt_save') }}">
+      <div class="row g-3">
+        <div class="col-12 col-md-4">
+          <label class="form-label">Growatt Username</label>
+          <input type="text" name="username" class="form-control form-control-sm"
+                 placeholder="your@email.com"
+                 value="{{ growatt_cfg.username if growatt_cfg else '' }}">
+        </div>
+        <div class="col-12 col-md-4">
+          <label class="form-label">Password</label>
+          <input type="password" name="password" class="form-control form-control-sm"
+                 placeholder="{{ '••••••••' if growatt_cfg and growatt_cfg.password_hash else 'Enter password' }}">
+        </div>
+        <div class="col-12 col-md-4">
+          <label class="form-label">Plant ID <span class="text-muted fw-normal">(optional)</span></label>
+          <input type="text" name="plant_id" class="form-control form-control-sm"
+                 placeholder="Auto-detected if blank"
+                 value="{{ growatt_cfg.plant_id if growatt_cfg else '' }}">
+        </div>
+        <div class="col-12">
+          <div class="form-check">
+            <input type="checkbox" name="enabled" class="form-check-input" id="growattEnabled"
+                   {{ 'checked' if growatt_cfg and growatt_cfg.enabled }}>
+            <label class="form-check-label text-muted" for="growattEnabled" style="font-size:0.85rem;">
+              Enable automatic sync
+            </label>
+          </div>
+        </div>
+        <div class="col-12 d-flex gap-2">
+          <button type="submit" class="btn btn-solar btn-sm">Save Configuration</button>
+          <button type="button" class="btn btn-outline-secondary btn-sm" id="syncBtn" onclick="triggerGrowattSync()">
+            <i class="bi bi-arrow-repeat me-1"></i>Sync Now
+          </button>
+        </div>
+        <div id="syncMsg" class="col-12 d-none">
+          <div class="alert alert-warning py-2 mb-0" style="font-size:0.82rem;"></div>
+        </div>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Stat cards -->
+<div class="row g-3 mb-4">
+  <div class="col-6 col-lg-3">
+    <div class="stat-card green">
+      <div class="stat-label">Total Production</div>
+      <div class="stat-value">{{ total_production }} <small style="font-size:1rem">kWh</small></div>
+      <div class="stat-sub">All time</div>
+      <i class="bi bi-sun stat-icon"></i>
+    </div>
+  </div>
+  <div class="col-6 col-lg-3">
+    <div class="stat-card blue">
+      <div class="stat-label">Total Consumption</div>
+      <div class="stat-value">{{ total_consumption }} <small style="font-size:1rem">kWh</small></div>
+      <div class="stat-sub">All time</div>
+      <i class="bi bi-house stat-icon"></i>
+    </div>
+  </div>
+  <div class="col-6 col-lg-3">
+    <div class="stat-card">
+      <div class="stat-label">Grid Export</div>
+      <div class="stat-value">{{ total_export }} <small style="font-size:1rem">kWh</small></div>
+      <div class="stat-sub">Sent to grid</div>
+      <i class="bi bi-arrow-up-right-circle stat-icon"></i>
+    </div>
+  </div>
+  <div class="col-6 col-lg-3">
+    <div class="stat-card red">
+      <div class="stat-label">Grid Import</div>
+      <div class="stat-value">{{ total_import }} <small style="font-size:1rem">kWh</small></div>
+      <div class="stat-sub">Drawn from grid</div>
+      <i class="bi bi-arrow-down-left-circle stat-icon"></i>
+    </div>
+  </div>
+</div>
+
+<!-- Chart -->
+<div class="chart-card mb-4">
+  <div class="chart-card-title">Last 30 Days — Production vs Consumption</div>
+  <canvas id="energyChart" height="120"></canvas>
+  {% if not entries %}
+    <div class="empty-state">
+      <i class="bi bi-lightning-charge"></i>
+      <p>No consumption data yet. Add a manual entry below.</p>
+    </div>
+  {% endif %}
+</div>
+
+<!-- Manual entry form -->
+<div class="row g-3 mb-4">
+  <div class="col-12 col-lg-5">
+    <div class="form-card">
+      <div class="chart-card-title mb-3">Manual Entry</div>
+      <form method="post" action="{{ url_for('consumption.add') }}">
+        <div class="mb-3">
+          <label class="form-label">Date</label>
+          <input type="date" name="date" class="form-control" value="{{ today }}" required>
+        </div>
+        <div class="row g-2 mb-3">
+          <div class="col-6">
+            <label class="form-label">Production (kWh)</label>
+            <input type="number" name="production_kwh" class="form-control" step="0.001" min="0" placeholder="0.000">
+          </div>
+          <div class="col-6">
+            <label class="form-label">Consumption (kWh)</label>
+            <input type="number" name="consumption_kwh" class="form-control" step="0.001" min="0" placeholder="0.000">
+          </div>
+          <div class="col-6">
+            <label class="form-label">Grid Export (kWh)</label>
+            <input type="number" name="grid_export_kwh" class="form-control" step="0.001" min="0" placeholder="0.000">
+          </div>
+          <div class="col-6">
+            <label class="form-label">Grid Import (kWh)</label>
+            <input type="number" name="grid_import_kwh" class="form-control" step="0.001" min="0" placeholder="0.000">
+          </div>
+        </div>
+        <button type="submit" class="btn btn-solar">
+          <i class="bi bi-plus-lg me-1"></i>Save Entry
+        </button>
+      </form>
+    </div>
+  </div>
+
+  <div class="col-12 col-lg-7">
+    <div class="chart-card h-100">
+      <div class="chart-card-title">Recent Entries</div>
+      {% if entries %}
+        <div class="table-responsive">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>Date</th>
+                <th class="text-end">Prod (kWh)</th>
+                <th class="text-end">Cons (kWh)</th>
+                <th class="text-end">Export</th>
+                <th class="text-end">Import</th>
+                <th>Source</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for e in entries %}
+                <tr>
+                  <td class="text-muted text-nowrap">{{ e.date.strftime('%b %d, %Y') }}</td>
+                  <td class="text-end text-success">{{ "%.2f"|format(e.production_kwh) }}</td>
+                  <td class="text-end">{{ "%.2f"|format(e.consumption_kwh) }}</td>
+                  <td class="text-end text-accent">{{ "%.2f"|format(e.grid_export_kwh) }}</td>
+                  <td class="text-end text-danger">{{ "%.2f"|format(e.grid_import_kwh) }}</td>
+                  <td>
+                    <span class="badge {{ 'bg-success' if e.source == 'growatt' else 'bg-secondary' }}">
+                      {{ e.source }}
+                    </span>
+                  </td>
+                  <td>
+                    <form method="post" action="{{ url_for('consumption.delete', entry_id=e.id) }}"
+                          style="display:inline">
+                      <button type="submit" class="btn btn-outline-danger btn-sm py-0 px-2"
+                              onclick="return confirm('Delete this entry?')">
+                        <i class="bi bi-trash"></i>
+                      </button>
+                    </form>
+                  </td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      {% else %}
+        <div class="empty-state">
+          <i class="bi bi-table"></i>
+          <p>No entries yet.</p>
+        </div>
+      {% endif %}
+    </div>
+  </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+const chartLabels = {{ chart_labels|safe }};
+const productionData = {{ production_data|safe }};
+const consumptionData = {{ consumption_data|safe }};
+const exportData = {{ export_data|safe }};
+
+if (chartLabels.length > 0) {
+  const ctx = document.getElementById('energyChart');
+  if (ctx) {
+    new Chart(ctx, {
+      type: 'line',
+      data: {
+        labels: chartLabels,
+        datasets: [
+          {
+            label: 'Production',
+            data: productionData,
+            borderColor: '#22c55e',
+            backgroundColor: 'rgba(34,197,94,0.1)',
+            fill: true,
+            tension: 0.3,
+            pointRadius: 3,
+          },
+          {
+            label: 'Consumption',
+            data: consumptionData,
+            borderColor: '#3b82f6',
+            backgroundColor: 'rgba(59,130,246,0.1)',
+            fill: true,
+            tension: 0.3,
+            pointRadius: 3,
+          },
+          {
+            label: 'Grid Export',
+            data: exportData,
+            borderColor: '#f59e0b',
+            backgroundColor: 'transparent',
+            borderDash: [5,4],
+            tension: 0.3,
+            pointRadius: 2,
+          },
+        ]
+      },
+      options: {
+        scales: {
+          x: { grid: { display: false } },
+          y: { grid: { color: '#374151' }, ticks: { callback: v => v + ' kWh' } }
+        },
+        plugins: {
+          legend: { position: 'top' },
+          tooltip: { mode: 'index', intersect: false }
+        },
+        interaction: { mode: 'index', intersect: false }
+      }
+    });
+  }
+}
+
+function triggerGrowattSync() {
+  const btn = document.getElementById('syncBtn');
+  const msgDiv = document.getElementById('syncMsg');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Syncing…';
+
+  fetch('{{ url_for("consumption.growatt_sync") }}', { method: 'POST' })
+    .then(r => r.json())
+    .then(data => {
+      msgDiv.classList.remove('d-none');
+      msgDiv.querySelector('.alert').textContent = data.message;
+    })
+    .catch(() => {
+      msgDiv.classList.remove('d-none');
+      msgDiv.querySelector('.alert').textContent = 'Sync request failed.';
+    })
+    .finally(() => {
+      btn.disabled = false;
+      btn.innerHTML = '<i class="bi bi-arrow-repeat me-1"></i>Sync Now';
+    });
+}
+</script>
+{% endblock %}

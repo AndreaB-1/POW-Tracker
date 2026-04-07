@@ -1,0 +1,79 @@
+{% extends "base.html" %}
+
+{% block title %}Settings — SolarTrack{% endblock %}
+{% block page_title %}System Settings{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+  <div class="col-12 col-lg-8">
+    <div class="form-card">
+      <form method="post">
+
+        <h6 class="text-accent mb-3"><i class="bi bi-sun me-2"></i>Solar System</h6>
+        <div class="row g-3 mb-4">
+          <div class="col-12 col-sm-6">
+            <label class="form-label">System Size (kW)</label>
+            <input type="number" name="system_size_kw" class="form-control" step="0.01" min="0"
+                   placeholder="e.g. 6.5"
+                   value="{{ settings.system_size_kw or '' }}">
+          </div>
+          <div class="col-12 col-sm-6">
+            <label class="form-label">Number of Panels</label>
+            <input type="number" name="panel_count" class="form-control" min="0"
+                   placeholder="e.g. 16"
+                   value="{{ settings.panel_count or '' }}">
+          </div>
+          <div class="col-12 col-sm-6">
+            <label class="form-label">Inverter Brand</label>
+            <input type="text" name="inverter_brand" class="form-control"
+                   placeholder="e.g. Growatt"
+                   value="{{ settings.inverter_brand or '' }}">
+          </div>
+          <div class="col-12 col-sm-6">
+            <label class="form-label">Installation Date</label>
+            <input type="date" name="installation_date" class="form-control"
+                   value="{{ settings.installation_date.isoformat() if settings.installation_date else '' }}">
+          </div>
+          <div class="col-12 col-sm-6">
+            <label class="form-label">Expected Annual Production (kWh)</label>
+            <input type="number" name="expected_annual_production_kwh" class="form-control"
+                   step="1" min="0" placeholder="e.g. 8500"
+                   value="{{ settings.expected_annual_production_kwh or '' }}">
+            <div class="form-text text-muted">Used for payback period estimates.</div>
+          </div>
+        </div>
+
+        <div class="section-divider"></div>
+        <h6 class="text-accent mb-3"><i class="bi bi-cash-coin me-2"></i>Financial</h6>
+        <div class="row g-3 mb-4">
+          <div class="col-12 col-sm-6">
+            <label class="form-label">Electricity Rate (per kWh)</label>
+            <input type="number" name="electricity_rate" class="form-control"
+                   step="0.0001" min="0" placeholder="e.g. 0.25"
+                   value="{{ settings.electricity_rate or '' }}">
+          </div>
+          <div class="col-12 col-sm-6">
+            <label class="form-label">Currency</label>
+            <select name="currency" class="form-select">
+              {% for c in currencies %}
+                <option value="{{ c }}" {{ 'selected' if settings.currency == c }}>{{ c }}</option>
+              {% endfor %}
+            </select>
+          </div>
+        </div>
+
+        <div class="section-divider"></div>
+        <div class="mb-4">
+          <label class="form-label">Notes</label>
+          <textarea name="notes" class="form-control" rows="3"
+                    placeholder="Any notes about your solar installation…">{{ settings.notes or '' }}</textarea>
+        </div>
+
+        <button type="submit" class="btn btn-solar">
+          <i class="bi bi-check-lg me-1"></i>Save Settings
+        </button>
+      </form>
+    </div>
+  </div>
+</div>
+{% endblock %}
